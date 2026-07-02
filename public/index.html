@@ -1,23 +1,98 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#8b5cf6" />
-  <title>losthusky</title>
-  <link rel="stylesheet" href="/style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#ff2e74" />
+<title>losthusky</title>
+<style>
+  :root{
+    --pink:#ff2e74; --orange:#ff9a3c; --purple:#7c3aed;
+    --grad:linear-gradient(105deg,#ff2e74 0%,#ff6a3d 55%,#ff9a3c 100%);
+    --ink:#12131a; --muted:#7a7f8c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+    min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px 16px; gap:16px;
+    background:linear-gradient(160deg,#ff2e74 0%,#ff6a3d 48%,#ffb03a 100%);
+    background-attachment:fixed;
+  }
+  .card{
+    width:100%; max-width:420px; background:#fff; border-radius:30px;
+    padding:30px 24px 24px; text-align:center;
+    box-shadow:0 30px 70px rgba(120,20,60,.35);
+  }
+  .avatar{
+    width:92px;height:92px;margin:0 auto 12px;border-radius:50%;
+    background:var(--grad); display:grid; place-items:center; font-size:44px;
+    box-shadow:0 10px 24px rgba(255,46,116,.45);
+  }
+  .handle{font-size:21px;font-weight:800;color:var(--ink);margin-bottom:4px}
+  .subtitle{font-size:13px;color:var(--muted);margin-bottom:20px}
+  form{display:flex;flex-direction:column}
+  .prompt{
+    font-size:23px;font-weight:800;color:#fff;line-height:1.25;
+    background:var(--grad); border-radius:22px 22px 0 0; padding:22px 18px 40px;
+    word-break:break-word;
+  }
+  textarea{
+    margin:-26px 10px 0; border:none; border-radius:18px; resize:none; min-height:104px;
+    background:#f1f2f6; padding:16px; font-size:16px; color:var(--ink); font-family:inherit;
+    outline:3px solid transparent; transition:outline-color .15s, background .15s;
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+  }
+  textarea::placeholder{color:#9aa0ac}
+  textarea:focus{outline-color:rgba(255,46,116,.5);background:#fff}
+  .handle-field{
+    margin:12px 10px 0; border:none;border-radius:14px;background:#f1f2f6;
+    padding:13px 15px;font-size:14px;color:var(--ink);outline:none;font-family:inherit;
+  }
+  .send-btn{
+    margin:16px 10px 0; border:none;border-radius:18px;background:var(--grad);color:#fff;
+    font-size:18px;font-weight:800;padding:16px;cursor:pointer;
+    box-shadow:0 12px 24px rgba(255,74,60,.4);transition:transform .1s,opacity .2s;
+  }
+  .send-btn:active{transform:scale(.97)}
+  .send-btn:disabled{opacity:.6}
+  .sent-state{display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 0}
+  .sent-state .check{
+    width:76px;height:76px;border-radius:50%;background:var(--grad);color:#fff;
+    font-size:40px;display:grid;place-items:center;box-shadow:0 10px 24px rgba(255,46,116,.4)
+  }
+  .sent-state p{font-size:20px;font-weight:800;color:var(--ink)}
+  .secondary{
+    border:2px solid var(--pink);background:#fff;color:var(--pink);
+    border-radius:16px;padding:13px 26px;font-weight:800;cursor:pointer;font-size:15px
+  }
+  .disclosure{
+    margin:20px 8px 4px;font-size:11.5px;line-height:1.55;color:#8a5a2a;
+    background:#fff6ec;border:1px solid #ffd9ab;border-radius:14px;padding:11px 13px;text-align:left
+  }
+  .brand{color:rgba(255,255,255,.9);font-weight:800;letter-spacing:.5px;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,.15)}
+  .brand small{display:block;font-weight:600;font-size:11px;opacity:.85;letter-spacing:2px;margin-top:2px}
+  .admin-dot{position:fixed;bottom:10px;right:12px;color:rgba(255,255,255,.35);text-decoration:none;font-size:18px}
+  .hidden{display:none!important}
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:#12131a;color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;z-index:50;
+    box-shadow:0 8px 24px rgba(0,0,0,.3)
+  }
+</style>
 </head>
-<body class="send-page">
-  <main class="card" id="card">
+<body>
+  <main class="card">
     <div class="avatar" id="avatar">🐺</div>
-    <h1 class="handle" id="handle">@losthusky</h1>
+    <div class="handle" id="handle">@losthusky</div>
+    <div class="subtitle">drop a message 👇</div>
 
-    <form id="sendForm" class="msg-box">
-      <p class="prompt" id="prompt">send me a message!</p>
-      <textarea id="message" maxlength="1000" rows="3"
-        placeholder="send me a message... 👀" required></textarea>
+    <form id="sendForm">
+      <div class="prompt" id="prompt">send me a message!</div>
+      <textarea id="message" maxlength="1000" placeholder="send me a message... 👀" required></textarea>
       <input id="handleField" class="handle-field" type="text" maxlength="60"
-        placeholder="add your @ (optional)" autocomplete="off" />
+        placeholder="add your @ so I know it's you (optional)" autocomplete="off" />
       <button type="submit" id="sendBtn" class="send-btn">Send!</button>
     </form>
 
@@ -28,14 +103,13 @@
     </div>
 
     <p class="disclosure">
-      ⚠️ Heads up — this is <b>not anonymous</b>. The recipient can see your
-      approximate location, device, and network for each message you send.
+      ⚠️ <b>Not anonymous.</b> The person receiving this can see your approximate
+      location, device, browser and network provider for each message you send.
     </p>
   </main>
 
-  <footer class="foot">
-    <a href="/admin" class="ghost-link">·</a>
-  </footer>
+  <div class="brand">losthusky<small>Q &amp; A</small></div>
+  <a href="/admin" class="admin-dot" aria-label="dashboard">·</a>
 
   <script src="/app.js"></script>
 </body>

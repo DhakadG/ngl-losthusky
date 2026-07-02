@@ -3,18 +3,13 @@ import { verifyPassword, createSession, verifySession, parseCookies } from "./li
 import { notify } from "./lib/notify.js";
 
 const MAX_MSG_LEN = 1000;
-const RATE_WINDOW_MS = 60 * 1000; // 1 minute
-const RATE_MAX = 8; // max messages per visitor+IP per window
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX = 8;
 
 const json = (data, status = 200, headers = {}) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", ...headers },
-  });
+  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...headers } });
 
-function uuid() {
-  return crypto.randomUUID();
-}
+const uuid = () => crypto.randomUUID();
 
 function visitorCookie(id) {
   return `vid=${id}; Path=/; Max-Age=${60 * 60 * 24 * 365 * 2}; HttpOnly; Secure; SameSite=Lax`;
@@ -29,53 +24,56 @@ async function requireAdmin(request, env) {
   return sess ? verifySession(sess, env.SESSION_SECRET) : false;
 }
 
-// Upsert the visitor row and return its id (from cookie or freshly minted).
-async function resolveVisitor(env, request, fp) {
+// Resolve a stable sender identity across IP/WiFi changes.
+// Priority: cookie vid > client-stored id (localStorage) > device fingerprint > new.
+async function resolveVisitor(env, request, fp, body = {}) {
   const cookies = parseCookies(request);
-  let id = cookies.vid;
-  let isNew = false;
+  let id = cookies.vid || (body.clientId || "").toString().slice(0, 40);
   const now = Date.now();
 
-  if (!id) {
-    // Try to match a returning sender by server fingerprint before minting new.
+  if (!id && fp.device_fp) {
+    const found = await env.DB.prepare(
+      "SELECT id FROM visitors WHERE device_fp = ? ORDER BY last_seen DESC LIMIT 1"
+    ).bind(fp.device_fp).first();
+    if (found) id = found.id;
+  }
+  if (!id && fp.fp_hash) {
     const found = await env.DB.prepare(
       "SELECT id FROM visitors WHERE fp_hash = ? ORDER BY last_seen DESC LIMIT 1"
     ).bind(fp.fp_hash).first();
     if (found) id = found.id;
-    else {
-      id = uuid();
-      isNew = true;
-    }
   }
+  if (!id) id = uuid();
 
   await env.DB.prepare(
-    `INSERT INTO visitors (id, fp_hash, first_seen, last_seen)
-     VALUES (?1, ?2, ?3, ?3)
-     ON CONFLICT(id) DO UPDATE SET last_seen = ?3, fp_hash = ?2`
-  ).bind(id, fp.fp_hash, now).run();
+    `INSERT INTO visitors (id, device_fp, fp_hash, first_seen, last_seen)
+     VALUES (?1, ?2, ?3, ?4, ?4)
+     ON CONFLICT(id) DO UPDATE SET last_seen = ?4, device_fp = ?2, fp_hash = ?3`
+  ).bind(id, fp.device_fp, fp.fp_hash, now).run();
 
-  return { id, isNew };
+  return { id };
 }
 
 async function insertEvent(env, type, slug, visitorId, fp) {
   const now = Date.now();
   const r = await env.DB.prepare(
-    `INSERT INTO events (type, slug, visitor_id, fp_hash, ip, country, region, city,
+    `INSERT INTO events (type, slug, visitor_id, device_fp, fp_hash, ip, country, region, city,
       lat, lon, timezone, postal, asn, isp, colo, ua, browser, browser_version,
-      os, os_version, device, device_model, source, is_mobile, lang, referer, screen, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      os, os_version, device, device_model, model_source, source, is_mobile, lang, referer,
+      viewport, screen, dpr, platform, cores, mem, touch, color_depth, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(
-    type, slug, visitorId, fp.fp_hash, fp.ip, fp.country, fp.region, fp.city,
-    fp.lat, fp.lon, fp.timezone, fp.postal, fp.asn, fp.isp, fp.colo, fp.ua,
-    fp.browser, fp.browser_version, fp.os, fp.os_version, fp.device, fp.device_model,
-    fp.source, fp.is_mobile, fp.lang, fp.referer, fp.screen, now
+    type, slug, visitorId, fp.device_fp, fp.fp_hash, fp.ip, fp.country, fp.region, fp.city,
+    fp.lat, fp.lon, fp.timezone, fp.postal, fp.asn, fp.isp, fp.colo, fp.ua, fp.browser,
+    fp.browser_version, fp.os, fp.os_version, fp.device, fp.device_model, fp.model_source,
+    fp.source, fp.is_mobile, fp.lang, fp.referer, fp.viewport, fp.screen, fp.dpr,
+    fp.platform, fp.cores, fp.mem, fp.touch, fp.color_depth, now
   ).run();
   return r.meta.last_row_id;
 }
 
-function locString(fp) {
-  return [fp.city, fp.region, fp.country].filter(Boolean).join(", ") || "unknown";
-}
+const locString = (fp) => [fp.city, fp.region, fp.country].filter(Boolean).join(", ") || "unknown";
+const devString = (fp) => [fp.device_model, fp.os, fp.os_version].filter(Boolean).join(" ") || fp.device || "device?";
 
 // ---------- public API ----------
 
@@ -83,18 +81,18 @@ async function handleView(request, env, ctx) {
   const hints = await request.json().catch(() => ({}));
   const slug = (hints.slug || "").toString();
   const fp = await buildFingerprint(request, hints);
-  const { id: visitorId } = await resolveVisitor(env, request, fp);
-  ctx.waitUntil(insertEvent(env, "view", slug, visitorId, fp).then(() => {}));
+  const { id: visitorId } = await resolveVisitor(env, request, fp, hints);
+  await insertEvent(env, "view", slug, visitorId, fp);
 
   if (env.NOTIFY_ON_VIEW === "true") {
     ctx.waitUntil(
       notify(env, {
         title: `👀 Link opened${slug ? ` (/${slug})` : ""}`,
         lines: [
-          `Location: ${locString(fp)}`,
-          `Device: ${[fp.device_model, fp.os, fp.os_version].filter(Boolean).join(" ")}`,
-          `Source: ${fp.source}`,
-          `Network: ${fp.isp || "?"}`,
+          `📍 ${locString(fp)}`,
+          `📱 ${devString(fp)}`,
+          `🌐 ${fp.source} · 📡 ${fp.isp || "?"}`,
+          `IP ${fp.ip}`,
         ],
       })
     );
@@ -112,33 +110,29 @@ async function handleSend(request, env, ctx) {
   if (message.length > MAX_MSG_LEN) return json({ ok: false, error: "too_long" }, 400);
 
   const fp = await buildFingerprint(request, body);
-  const { id: visitorId } = await resolveVisitor(env, request, fp);
+  const { id: visitorId } = await resolveVisitor(env, request, fp, body);
 
-  // Rate limit: recent messages from this visitor OR this IP.
   const since = Date.now() - RATE_WINDOW_MS;
   const recent = await env.DB.prepare(
     "SELECT COUNT(*) AS n FROM messages WHERE created_at > ? AND (visitor_id = ? OR event_id IN (SELECT id FROM events WHERE ip = ? AND created_at > ?))"
   ).bind(since, visitorId, fp.ip, since).first();
   if (recent && recent.n >= RATE_MAX) return json({ ok: false, error: "rate_limited" }, 429);
 
-  if (handle) {
-    await env.DB.prepare("UPDATE visitors SET handle = ? WHERE id = ?").bind(handle, visitorId).run();
-  }
+  if (handle) await env.DB.prepare("UPDATE visitors SET handle = ? WHERE id = ?").bind(handle, visitorId).run();
 
   const eventId = await insertEvent(env, "message", slug, visitorId, fp);
-  const now = Date.now();
   await env.DB.prepare(
     "INSERT INTO messages (slug, visitor_id, body, event_id, created_at) VALUES (?,?,?,?,?)"
-  ).bind(slug, visitorId, message, eventId, now).run();
+  ).bind(slug, visitorId, message, eventId, Date.now()).run();
 
   ctx.waitUntil(
     notify(env, {
       title: "💌 New message" + (handle ? ` from @${handle}` : ""),
       lines: [
-        `"${message.slice(0, 180)}"`,
-        `Location: ${locString(fp)}`,
-        `Device: ${[fp.device_model, fp.os, fp.os_version].filter(Boolean).join(" ")} · ${fp.source}`,
-        `Network: ${fp.isp || "?"}`,
+        `"${message.slice(0, 200)}"`,
+        `📍 ${locString(fp)}`,
+        `📱 ${devString(fp)} · ${fp.source}`,
+        `📡 ${fp.isp || "?"} · IP ${fp.ip}`,
       ],
     })
   );
@@ -151,22 +145,19 @@ async function handleSend(request, env, ctx) {
 async function adminLogin(request, env) {
   const { password } = await request.json().catch(() => ({}));
   if (!password || !(await verifyPassword(password, env.ADMIN_PASSWORD_HASH))) {
-    // Small constant delay to blunt brute forcing.
     await new Promise((r) => setTimeout(r, 400));
     return json({ ok: false }, 401);
   }
-  const token = await createSession(env.SESSION_SECRET);
-  return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(token) });
+  return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(await createSession(env.SESSION_SECRET)) });
 }
 
 async function adminMessages(request, env) {
   const url = new URL(request.url);
   const slug = url.searchParams.get("slug");
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50", 10), 200);
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "60", 10), 200);
   const before = parseInt(url.searchParams.get("before") || "0", 10);
 
-  const where = [];
-  const args = [];
+  const where = [], args = [];
   if (slug !== null) { where.push("m.slug = ?"); args.push(slug); }
   if (before) { where.push("m.id < ?"); args.push(before); }
   const clause = where.length ? "WHERE " + where.join(" AND ") : "";
@@ -175,7 +166,7 @@ async function adminMessages(request, env) {
     `SELECT m.id, m.slug, m.body, m.is_read, m.created_at, m.visitor_id,
             v.handle, v.label,
             e.city, e.region, e.country, e.isp, e.asn, e.ip, e.source,
-            e.os, e.os_version, e.device_model, e.browser, e.browser_version,
+            e.os, e.os_version, e.device_model, e.model_source, e.browser, e.browser_version,
             e.device, e.timezone, e.lat, e.lon,
             (SELECT COUNT(*) FROM messages mm WHERE mm.visitor_id = m.visitor_id) AS sender_messages,
             (SELECT COUNT(*) FROM events ev WHERE ev.visitor_id = m.visitor_id AND ev.type='view') AS sender_views
@@ -185,11 +176,10 @@ async function adminMessages(request, env) {
      ${clause}
      ORDER BY m.id DESC LIMIT ?`
   ).bind(...args, limit).all();
-
   return json({ ok: true, messages: rows.results });
 }
 
-async function adminVisitor(request, env, visitorId) {
+async function adminVisitor(env, visitorId) {
   const visitor = await env.DB.prepare("SELECT * FROM visitors WHERE id = ?").bind(visitorId).first();
   if (!visitor) return json({ ok: false }, 404);
   const messages = await env.DB.prepare(
@@ -197,8 +187,8 @@ async function adminVisitor(request, env, visitorId) {
   ).bind(visitorId).all();
   const events = await env.DB.prepare(
     `SELECT type, city, region, country, isp, asn, ip, source, os, os_version,
-            device_model, browser, browser_version, device, lang, screen, timezone,
-            lat, lon, created_at
+            device_model, model_source, browser, browser_version, device, lang, viewport,
+            screen, dpr, platform, cores, mem, touch, color_depth, timezone, lat, lon, created_at
      FROM events WHERE visitor_id = ? ORDER BY id DESC LIMIT 100`
   ).bind(visitorId).all();
   return json({ ok: true, visitor, messages: messages.results, events: events.results });
@@ -209,7 +199,7 @@ async function adminStats(env) {
     `SELECT
       (SELECT COUNT(*) FROM messages) AS messages,
       (SELECT COUNT(*) FROM events WHERE type='view') AS views,
-      (SELECT COUNT(DISTINCT visitor_id) FROM visitors) AS visitors,
+      (SELECT COUNT(DISTINCT id) FROM visitors) AS visitors,
       (SELECT COUNT(*) FROM messages WHERE is_read=0) AS unread`
   ).first();
   return json({ ok: true, stats: totals });
@@ -233,13 +223,18 @@ async function adminLinks(request, env) {
   return json({ ok: true, links: rows.results });
 }
 
-async function adminMarkRead(env, id) {
-  await env.DB.prepare("UPDATE messages SET is_read = 1 WHERE id = ?").bind(id).run();
-  return json({ ok: true });
-}
-async function adminDeleteMessage(env, id) {
-  await env.DB.prepare("DELETE FROM messages WHERE id = ?").bind(id).run();
-  return json({ ok: true });
+async function adminVisitors(env) {
+  const rows = await env.DB.prepare(
+    `SELECT v.id, v.handle, v.label, v.first_seen, v.last_seen,
+            (SELECT COUNT(*) FROM messages m WHERE m.visitor_id=v.id) AS messages,
+            (SELECT COUNT(*) FROM events e WHERE e.visitor_id=v.id AND e.type='view') AS views,
+            (SELECT city||', '||country FROM events e WHERE e.visitor_id=v.id ORDER BY e.id DESC LIMIT 1) AS last_loc,
+            (SELECT device_model FROM events e WHERE e.visitor_id=v.id AND e.device_model<>'' ORDER BY e.id DESC LIMIT 1) AS device_model
+     FROM visitors v
+     WHERE EXISTS (SELECT 1 FROM events e WHERE e.visitor_id=v.id)
+     ORDER BY v.last_seen DESC LIMIT 300`
+  ).all();
+  return json({ ok: true, visitors: rows.results });
 }
 
 // ---------- router ----------
@@ -248,64 +243,46 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
-
     try {
-      // Public capture endpoints
       if (path === "/api/view" && request.method === "POST") return handleView(request, env, ctx);
       if (path === "/api/send" && request.method === "POST") return handleSend(request, env, ctx);
 
-      // Link metadata for the send page (title/prompt/handle)
       if (path === "/api/link" && request.method === "GET") {
         const slug = url.searchParams.get("slug") || "";
         const link = await env.DB.prepare("SELECT slug, title, prompt, active FROM links WHERE slug = ?").bind(slug).first();
         return json({ ok: true, owner: env.OWNER_HANDLE || "", link: link || null });
       }
 
-      // Admin auth
       if (path === "/api/admin/login" && request.method === "POST") return adminLogin(request, env);
       if (path === "/api/admin/logout" && request.method === "POST")
         return json({ ok: true }, 200, { "Set-Cookie": clearSessionCookie });
       if (path === "/api/admin/me") return json({ ok: true, authed: await requireAdmin(request, env) });
 
-      // Everything below requires admin
       if (path.startsWith("/api/admin/")) {
         if (!(await requireAdmin(request, env))) return json({ ok: false, error: "unauthorized" }, 401);
-
         if (path === "/api/admin/messages") return adminMessages(request, env);
         if (path === "/api/admin/stats") return adminStats(env);
         if (path === "/api/admin/links") return adminLinks(request, env);
-        if (path === "/api/admin/visitors" ) {
-          const rows = await env.DB.prepare(
-            `SELECT v.id, v.handle, v.label, v.first_seen, v.last_seen,
-                    (SELECT COUNT(*) FROM messages m WHERE m.visitor_id=v.id) AS messages,
-                    (SELECT COUNT(*) FROM events e WHERE e.visitor_id=v.id AND e.type='view') AS views,
-                    (SELECT city||', '||country FROM events e WHERE e.visitor_id=v.id ORDER BY e.id DESC LIMIT 1) AS last_loc
-             FROM visitors v
-             WHERE (SELECT COUNT(*) FROM messages m WHERE m.visitor_id=v.id) > 0
-                OR (SELECT COUNT(*) FROM events e WHERE e.visitor_id=v.id) > 0
-             ORDER BY v.last_seen DESC LIMIT 200`
-          ).all();
-          return json({ ok: true, visitors: rows.results });
-        }
+        if (path === "/api/admin/visitors") return adminVisitors(env);
         let m;
-        if ((m = path.match(/^\/api\/admin\/visitor\/(.+)$/))) return adminVisitor(request, env, m[1]);
-        if ((m = path.match(/^\/api\/admin\/message\/(\d+)\/read$/)) && request.method === "POST")
-          return adminMarkRead(env, parseInt(m[1], 10));
-        if ((m = path.match(/^\/api\/admin\/message\/(\d+)$/)) && request.method === "DELETE")
-          return adminDeleteMessage(env, parseInt(m[1], 10));
-
+        if ((m = path.match(/^\/api\/admin\/visitor\/(.+)$/))) return adminVisitor(env, decodeURIComponent(m[1]));
+        if ((m = path.match(/^\/api\/admin\/message\/(\d+)\/read$/)) && request.method === "POST") {
+          await env.DB.prepare("UPDATE messages SET is_read=1 WHERE id=?").bind(parseInt(m[1], 10)).run();
+          return json({ ok: true });
+        }
+        if ((m = path.match(/^\/api\/admin\/message\/(\d+)$/)) && request.method === "DELETE") {
+          await env.DB.prepare("DELETE FROM messages WHERE id=?").bind(parseInt(m[1], 10)).run();
+          return json({ ok: true });
+        }
         return json({ ok: false, error: "not_found" }, 404);
       }
 
-      // Serve the admin dashboard shell (auth happens client-side via /api/admin/me)
-      if (path === "/admin" || path === "/admin/") {
-        return env.ASSETS.fetch(new Request(new URL("/admin.html", url), request));
-      }
+      if (path === "/admin" || path === "/admin/")
+        return env.ASSETS.fetch(new Request(new URL("/admin.html", url), { headers: request.headers }));
 
-      // Anything else → static assets (SPA fallback serves the send page)
       return env.ASSETS.fetch(request);
     } catch (err) {
-      return json({ ok: false, error: "server_error", detail: String(err && err.message || err) }, 500);
+      return json({ ok: false, error: "server_error", detail: String((err && err.message) || err) }, 500);
     }
   },
 };

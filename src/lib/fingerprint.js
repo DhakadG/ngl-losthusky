@@ -1,7 +1,7 @@
-// Builds a consensual fingerprint snapshot from a request.
-// Everything here is derived from headers/`request.cf` the browser already
-// sends — no covert access to the device. Location is IP-level (city/ISP),
-// not GPS. Device model is only available on Android (Apple strips it on iOS).
+// Builds a consensual fingerprint snapshot from a request + client hints.
+// Everything is derived from headers/`request.cf`/`navigator` values the
+// browser already exposes — no covert access. Location is IP-level (city/ISP),
+// not GPS. iPhone model is inferred from viewport size (Apple hides it in UA).
 
 const IN_APP = [
   { re: /Instagram/i, name: "Instagram" },
@@ -18,15 +18,14 @@ const IN_APP = [
 ];
 
 function detectSource(ua) {
-  for (const app of IN_APP) if (app.re.test(ua)) return app.name + " in-app browser";
-  if (/CriOS/i.test(ua)) return "Chrome (iOS)";
+  for (const app of IN_APP) if (app.re.test(ua)) return app.name;
+  if (/CriOS|Chrome/i.test(ua)) return "Chrome";
   if (/EdgiOS|Edg\//i.test(ua)) return "Edge";
   if (/FxiOS|Firefox/i.test(ua)) return "Firefox";
   if (/SamsungBrowser/i.test(ua)) return "Samsung Internet";
   if (/OPR|Opera/i.test(ua)) return "Opera";
-  if (/Chrome/i.test(ua)) return "Chrome";
   if (/Safari/i.test(ua)) return "Safari";
-  return "Web browser";
+  return "Web Browser";
 }
 
 function detectBrowser(ua) {
@@ -55,17 +54,44 @@ function detectOS(ua) {
   return { os: "Unknown", os_version: "" };
 }
 
+// iPhone model lookup by portrait CSS viewport (w x h) + devicePixelRatio.
+// Some sizes map to several models — we return the representative range.
+const IPHONE_TABLE = [
+  { w: 320, h: 568, dpr: 2, name: "iPhone SE (1st gen)" },
+  { w: 375, h: 667, dpr: 2, name: "iPhone SE (2nd/3rd gen)" },
+  { w: 414, h: 736, dpr: 3, name: "iPhone 8 Plus" },
+  { w: 375, h: 812, dpr: 3, name: "iPhone X / XS / 11 Pro" },
+  { w: 414, h: 896, dpr: 2, name: "iPhone XR / 11" },
+  { w: 414, h: 896, dpr: 3, name: "iPhone XS Max / 11 Pro Max" },
+  { w: 360, h: 780, dpr: 3, name: "iPhone 12 mini / 13 mini" },
+  { w: 375, h: 812, dpr: 3, name: "iPhone 12 mini / 13 mini" },
+  { w: 390, h: 844, dpr: 3, name: "iPhone 12 / 13 / 14" },
+  { w: 428, h: 926, dpr: 3, name: "iPhone 12/13 Pro Max / 14 Plus" },
+  { w: 393, h: 852, dpr: 3, name: "iPhone 14 Pro / 15 / 15 Pro / 16" },
+  { w: 430, h: 932, dpr: 3, name: "iPhone 15 Plus / 15 Pro Max / 16 Plus" },
+  { w: 402, h: 874, dpr: 3, name: "iPhone 16 Pro" },
+  { w: 440, h: 956, dpr: 3, name: "iPhone 16 Pro Max" },
+];
+
+function iphoneFromViewport(vw, vh, dpr) {
+  if (!vw || !vh) return "";
+  const w = Math.min(vw, vh), h = Math.max(vw, vh);
+  const near = (a, b) => Math.abs(a - b) <= 3;
+  const drp = Math.round(dpr || 0);
+  let best = "";
+  for (const m of IPHONE_TABLE) {
+    if (near(w, m.w) && near(h, m.h) && (drp === 0 || drp === m.dpr)) return m.name;
+    if (!best && near(w, m.w) && near(h, m.h)) best = m.name;
+  }
+  return best || "iPhone";
+}
+
 // Android UA embeds the model, e.g. "...; SM-S911B Build/..." or "...; Pixel 8)".
-function detectDeviceModel(ua, hints) {
-  if (hints && hints.model) return hints.model;
+function androidModel(ua) {
   let m = ua.match(/;\s*([^;)]+?)\s+Build\//i);
   if (m) return m[1].trim();
-  if (/Android/i.test(ua)) {
-    m = ua.match(/;\s*([^;)]+)\)/);
-    if (m && !/Android/i.test(m[1])) return m[1].trim();
-  }
-  if (/iPhone/i.test(ua)) return "iPhone";
-  if (/iPad/i.test(ua)) return "iPad";
+  m = ua.match(/;\s*([^;)]+)\)/);
+  if (m && !/Android|Linux|U;|wv/i.test(m[1])) return m[1].trim();
   return "";
 }
 
@@ -80,7 +106,6 @@ async function sha256Hex(str) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// hints: optional client-hint object from the browser { model, screen, tz, ... }
 export async function buildFingerprint(request, hints = {}) {
   const ua = request.headers.get("User-Agent") || "";
   const cf = request.cf || {};
@@ -90,6 +115,16 @@ export async function buildFingerprint(request, hints = {}) {
 
   const { browser, version } = detectBrowser(ua);
   const os = detectOS(ua);
+
+  // Resolve device model: UA high-entropy > Android UA > iPhone-from-viewport.
+  let device_model = "", model_source = "";
+  if (hints.model) { device_model = hints.model; model_source = "ua"; }
+  else if (/Android/i.test(ua)) { device_model = androidModel(ua); model_source = device_model ? "ua" : ""; }
+  else if (/iPhone/i.test(ua)) {
+    device_model = iphoneFromViewport(hints.vw, hints.vh, hints.dpr);
+    model_source = device_model && device_model !== "iPhone" ? "viewport" : "";
+  } else if (/iPad/i.test(ua)) { device_model = "iPad"; }
+
   const fp = {
     ip,
     country: cf.country || "",
@@ -108,14 +143,27 @@ export async function buildFingerprint(request, hints = {}) {
     os: os.os,
     os_version: os.os_version,
     device: deviceType(ua),
-    device_model: detectDeviceModel(ua, hints),
+    device_model,
+    model_source,
     source: detectSource(ua),
     is_mobile: /Mobi|Android|iPhone/i.test(ua) ? 1 : 0,
-    lang: lang.split(",")[0] || "",
+    lang: (hints.langs || lang).split(",")[0] || "",
     referer,
+    viewport: hints.vw && hints.vh ? `${hints.vw}x${hints.vh}` : "",
     screen: hints.screen || "",
+    dpr: hints.dpr ? String(hints.dpr) : "",
+    platform: hints.platform || "",
+    cores: hints.cores || null,
+    mem: hints.mem ? String(hints.mem) : "",
+    touch: hints.touch != null ? Number(hints.touch) : null,
+    color_depth: hints.colorDepth || null,
   };
-  // Server-side fallback identity (used only if the cookie is missing/cleared).
+
+  // ip+ua fallback identity.
   fp.fp_hash = await sha256Hex([ip, ua, fp.lang, fp.timezone].join("|"));
+  // Device fingerprint — stable across IP/WiFi changes (no IP in it).
+  fp.device_fp = await sha256Hex(
+    [ua, fp.viewport, fp.screen, fp.dpr, fp.platform, fp.cores, fp.mem, fp.touch, fp.color_depth, fp.timezone, fp.lang].join("|")
+  );
   return fp;
 }

@@ -1,49 +1,122 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>Dashboard</title>
-  <link rel="stylesheet" href="/style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Dashboard</title>
+<style>
+  :root{
+    --pink:#ff2e74; --grad:linear-gradient(105deg,#ff2e74,#ff6a3d,#ff9a3c);
+    --bg:#0c0e16; --panel:#151826; --panel2:#1b1f31; --border:#262b40;
+    --ink:#eef0f6; --muted:#8b90a6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;min-height:100dvh}
+  .hidden{display:none!important}
+  .muted{color:var(--muted);font-size:12px}
+
+  /* login */
+  .login-wrap{min-height:100dvh;display:grid;place-items:center;padding:20px}
+  .login-card{background:var(--panel);border:1px solid var(--border);border-radius:22px;padding:30px;width:100%;max-width:340px;text-align:center}
+  .login-card h1{font-size:20px;margin-bottom:18px}
+  .login-card input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:#fff;font-size:15px;margin-bottom:12px}
+  .login-card button{width:100%;padding:14px;border:none;border-radius:12px;background:var(--grad);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+
+  /* dash */
+  .dash{max-width:940px;margin:0 auto;padding:18px 14px 70px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px}
+  .topbar h1{font-size:19px}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{border:1px solid var(--border);background:var(--panel);color:var(--ink);border-radius:11px;padding:9px 13px;font-size:13px;cursor:pointer;font-weight:600}
+  .btn:hover{border-color:#3a4160}
+  .btn.primary{background:var(--grad);border:none;color:#fff}
+  .btn.danger{border-color:#5b2230;color:#ff8095}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:15px;text-align:center}
+  .stat .n{font-size:24px;font-weight:800}
+  .stat .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+  .tabs{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto}
+  .tab{padding:9px 16px;border-radius:999px;background:var(--panel);border:1px solid var(--border);cursor:pointer;font-size:13px;white-space:nowrap}
+  .tab.active{background:var(--pink);border-color:var(--pink);color:#fff;font-weight:700}
+
+  .msg{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:15px;margin-bottom:12px}
+  .msg.unread{border-color:var(--pink);box-shadow:0 0 0 1px rgba(255,46,116,.25)}
+  .msg .body{font-size:16px;margin-bottom:11px;white-space:pre-wrap;word-break:break-word;line-height:1.4}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+  .chip{font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:4px 10px;color:#c3c8de}
+  .chip.hot{border-color:#5b2230;color:#ff9db0}
+  .msg .time{font-size:11px;color:var(--muted);margin-bottom:10px}
+  .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .row .btn{padding:8px 12px;font-size:12px}
+
+  .listrow{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:13px 15px;margin-bottom:10px}
+  .listrow a{color:#ff9db0;text-decoration:none;word-break:break-all}
+  .avatar-sm{width:42px;height:42px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-size:20px;flex:0 0 auto}
+
+  /* modal / profile */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(3px);display:grid;place-items:center;padding:14px;z-index:40}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:22px;width:100%;max-width:480px;max-height:88vh;overflow:auto}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border)}
+  .modal-head h2{font-size:16px}
+  .pro-badge{background:var(--grad);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:999px;margin-left:6px}
+  .x{cursor:pointer;color:var(--muted);font-size:22px;line-height:1;background:none;border:none}
+  .mbody{padding:16px 18px}
+  .sect-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px;display:flex;align-items:center;gap:6px}
+  .sect-title:first-child{margin-top:0}
+  .profile-hero{text-align:center;padding:8px 0 4px}
+  .avatar-lg{width:90px;height:90px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-size:44px;margin:0 auto 8px;box-shadow:0 8px 20px rgba(255,46,116,.4)}
+  .profile-hero .uname{font-size:18px;font-weight:800}
+  .counts{display:flex;justify-content:center;gap:26px;margin-top:12px}
+  .counts .c{text-align:center}
+  .counts .c b{display:block;font-size:20px}
+  .counts .c span{font-size:11px;color:var(--muted)}
+  .panel{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:4px 14px}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);font-size:14px;align-items:center}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--muted);display:flex;align-items:center;gap:8px}
+  .kv .v{color:#fff;font-weight:600;text-align:right;word-break:break-word}
+  .kv .ico{width:26px;height:26px;border-radius:50%;background:#fff;color:#12131a;display:grid;place-items:center;font-size:13px;flex:0 0 auto}
+  .mapwrap{border-radius:14px;overflow:hidden;border:1px solid var(--border);height:190px;background:var(--panel2)}
+  .mapwrap iframe{width:100%;height:100%;border:0;filter:saturate(.9) brightness(.95)}
+  .locpill{display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600}
+  .hist{font-size:12.5px}
+  .hist .kv{padding:8px 0}
+  @media(max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
 </head>
-<body class="admin-body">
-  <!-- Login -->
+<body>
   <div id="loginView" class="login-wrap">
     <form id="loginForm" class="login-card">
       <h1>🔒 Dashboard</h1>
       <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
       <button type="submit">Unlock</button>
-      <p id="loginErr" class="muted2" style="color:#f87171;margin:12px 0 0;display:none">Wrong password</p>
+      <p id="loginErr" class="muted" style="color:#ff8095;margin-top:12px;display:none">Wrong password</p>
     </form>
   </div>
 
-  <!-- Dashboard -->
   <div id="dashView" class="dash hidden">
     <div class="topbar">
       <h1>💌 Inbox</h1>
       <div class="actions">
         <button class="btn primary" id="newLinkBtn">+ New link</button>
-        <button class="btn" id="refreshBtn">↻</button>
+        <button class="btn" id="refreshBtn">↻ Refresh</button>
         <button class="btn" id="logoutBtn">Logout</button>
       </div>
     </div>
-
     <div class="stats" id="stats"></div>
-
     <div class="tabs">
       <div class="tab active" data-tab="inbox">Inbox</div>
       <div class="tab" data-tab="senders">Senders</div>
       <div class="tab" data-tab="links">Links</div>
     </div>
-
     <div id="inboxTab"></div>
     <div id="sendersTab" class="hidden"></div>
     <div id="linksTab" class="hidden"></div>
   </div>
 
   <div id="modalRoot"></div>
-  <canvas id="storyCanvas" width="1080" height="1920" style="display:none"></canvas>
+  <canvas id="storyCanvas" width="1440" height="2560" style="display:none"></canvas>
   <script src="/admin.js"></script>
 </body>
 </html>

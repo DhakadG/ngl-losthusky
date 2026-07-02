@@ -51,14 +51,39 @@ npx wrangler secret put ADMIN_PASSWORD_HASH          # paste it
 npm run gen-secret                                   # copy the random string
 npx wrangler secret put SESSION_SECRET               # paste it
 
-# 4. (optional) notifications
-npx wrangler secret put TELEGRAM_BOT_TOKEN
-npx wrangler secret put TELEGRAM_CHAT_ID
-# or a Discord/Slack webhook:
-npx wrangler secret put NOTIFY_WEBHOOK_URL
-
-# 5. Deploy to ngl.losthusky.qzz.io
+# 4. Deploy to ngl.losthusky.qzz.io
 npm run deploy
+```
+
+## Push notifications (new message + every view)
+
+`NOTIFY_ON_VIEW` is already `"true"`, so you get pinged on views too. Pick one:
+
+### Telegram (recommended, free, instant)
+1. In Telegram, message **@BotFather** → `/newbot` → copy the **bot token**.
+2. Message your new bot once (say "hi"), then open
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser and copy the
+   `"chat":{"id": ...}` number — that's your **chat id**.
+3. Set both secrets and redeploy:
+   ```bash
+   npx wrangler secret put TELEGRAM_BOT_TOKEN   # paste the token
+   npx wrangler secret put TELEGRAM_CHAT_ID     # paste the chat id
+   npm run deploy
+   ```
+
+### Or a Discord/Slack webhook
+```bash
+npx wrangler secret put NOTIFY_WEBHOOK_URL      # paste the webhook URL
+npm run deploy
+```
+
+> I can't set these for you — the token comes from your own Telegram account.
+
+## Upgrading an existing database
+
+If the DB was created before the device-signal columns were added:
+```bash
+npx wrangler d1 execute losthusky_inbox --file=./scripts/migrate-001.sql --remote
 ```
 
 For local dev, copy `.dev.vars.example` to `.dev.vars`, fill it, and run `npm run dev`.

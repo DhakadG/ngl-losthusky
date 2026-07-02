@@ -26,8 +26,8 @@
   "vars": {
     // Public, non-secret config only. Secrets go in .dev.vars / `wrangler secret`.
     "OWNER_HANDLE": "losthusky",
-    // Notify me on views too (noisy). Set "false" to only notify on messages.
-    "NOTIFY_ON_VIEW": "false"
+    // Notify me on views too. Set "false" to only notify on messages.
+    "NOTIFY_ON_VIEW": "true"
   },
 
   "routes": [{ "pattern": "ngl.losthusky.qzz.io", "custom_domain": true }]
