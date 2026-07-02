@@ -1,6 +1,6 @@
 import { buildFingerprint } from "./lib/fingerprint.js";
 import { verifyPassword, createSession, verifySession, parseCookies } from "./lib/auth.js";
-import { notify } from "./lib/notify.js";
+import { notify, buildReport } from "./lib/notify.js";
 
 const MAX_MSG_LEN = 1000;
 const RATE_WINDOW_MS = 60 * 1000;
@@ -72,29 +72,35 @@ async function insertEvent(env, type, slug, visitorId, fp) {
   return r.meta.last_row_id;
 }
 
-const locString = (fp) => [fp.city, fp.region, fp.country].filter(Boolean).join(", ") || "unknown";
-const devString = (fp) => [fp.device_model, fp.os, fp.os_version].filter(Boolean).join(" ") || fp.device || "device?";
+async function visitorCounts(env, visitorId) {
+  const row = await env.DB.prepare(
+    `SELECT (SELECT COUNT(*) FROM messages WHERE visitor_id = ?1) AS msgs,
+            (SELECT COUNT(*) FROM events WHERE visitor_id = ?1 AND type = 'view') AS views`
+  ).bind(visitorId).first();
+  return { msgs: row?.msgs || 0, views: row?.views || 0 };
+}
 
 // ---------- public API ----------
 
 async function handleView(request, env, ctx) {
   const hints = await request.json().catch(() => ({}));
-  const slug = (hints.slug || "").toString();
+  const slug = (hints.slug || "").toString().slice(0, 40);
   const fp = await buildFingerprint(request, hints);
   const { id: visitorId } = await resolveVisitor(env, request, fp, hints);
   await insertEvent(env, "view", slug, visitorId, fp);
 
   if (env.NOTIFY_ON_VIEW === "true") {
     ctx.waitUntil(
-      notify(env, {
-        title: `👀 Link opened${slug ? ` (/${slug})` : ""}`,
-        lines: [
-          `📍 ${locString(fp)}`,
-          `📱 ${devString(fp)}`,
-          `🌐 ${fp.source} · 📡 ${fp.isp || "?"}`,
-          `IP ${fp.ip}`,
-        ],
-      })
+      (async () => {
+        const counts = await visitorCounts(env, visitorId);
+        const report = buildReport("view", fp, {
+          slug,
+          senderMessages: counts.msgs,
+          senderViews: counts.views,
+          dashboardUrl: `${new URL(request.url).origin}/admin#v=${encodeURIComponent(visitorId)}`,
+        });
+        await notify(env, report);
+      })()
     );
   }
   return json({ ok: true, visitorId }, 200, { "Set-Cookie": visitorCookie(visitorId) });
@@ -102,9 +108,9 @@ async function handleView(request, env, ctx) {
 
 async function handleSend(request, env, ctx) {
   const body = await request.json().catch(() => ({}));
-  const slug = (body.slug || "").toString();
+  const slug = (body.slug || "").toString().slice(0, 40);
   const message = (body.message || "").toString().trim();
-  const handle = (body.handle || "").toString().trim().slice(0, 60);
+  const handle = (body.handle || "").toString().trim().replace(/^@/, "").slice(0, 60);
 
   if (!message) return json({ ok: false, error: "empty" }, 400);
   if (message.length > MAX_MSG_LEN) return json({ ok: false, error: "too_long" }, 400);
@@ -126,15 +132,16 @@ async function handleSend(request, env, ctx) {
   ).bind(slug, visitorId, message, eventId, Date.now()).run();
 
   ctx.waitUntil(
-    notify(env, {
-      title: "💌 New message" + (handle ? ` from @${handle}` : ""),
-      lines: [
-        `"${message.slice(0, 200)}"`,
-        `📍 ${locString(fp)}`,
-        `📱 ${devString(fp)} · ${fp.source}`,
-        `📡 ${fp.isp || "?"} · IP ${fp.ip}`,
-      ],
-    })
+    (async () => {
+      const counts = await visitorCounts(env, visitorId);
+      const report = buildReport("message", fp, {
+        slug, handle, message,
+        senderMessages: counts.msgs,
+        senderViews: counts.views,
+        dashboardUrl: `${new URL(request.url).origin}/admin#v=${encodeURIComponent(visitorId)}`,
+      });
+      await notify(env, report);
+    })()
   );
 
   return json({ ok: true }, 200, { "Set-Cookie": visitorCookie(visitorId) });
@@ -277,9 +284,9 @@ export default {
         return json({ ok: false, error: "not_found" }, 404);
       }
 
-      if (path === "/admin" || path === "/admin/")
-        return env.ASSETS.fetch(new Request(new URL("/admin.html", url), { headers: request.headers }));
-
+      // /admin is intentionally NOT special-cased here — the assets layer's
+      // own clean-URL resolution serves admin.html for it directly. See the
+      // run_worker_first comment in wrangler.jsonc for why.
       return env.ASSETS.fetch(request);
     } catch (err) {
       return json({ ok: false, error: "server_error", detail: String((err && err.message) || err) }, 500);

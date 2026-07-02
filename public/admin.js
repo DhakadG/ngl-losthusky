@@ -14,6 +14,13 @@ const ago = (ts) => {
 const AVATARS = ["🦋", "🐺", "🦊", "🐧", "🦁", "🐼", "🐸", "🦉", "🐙", "🦄", "🐯", "🐨", "🦖", "🐳", "🦅", "🐝"];
 const avatarFor = (id) => { let h = 0; for (const c of id || "") h = (h * 31 + c.charCodeAt(0)) >>> 0; return AVATARS[h % AVATARS.length]; };
 const unameFor = (id) => "user_" + (id || "").replace(/-/g, "").slice(-6);
+const HOSTING_RE = /\b(host(?:ing)?|vpn|proxy|datacenter|data ?center|colo(?:cation)?|cloud|digitalocean|amazon|aws|google ?cloud|microsoft ?azure|\bovh\b|linode|vultr|contabo|leaseweb|hetzner|choopa|m247|psychz|server(?:s)?\b)/i;
+const looksHosting = (isp) => !!(isp && HOSTING_RE.test(isp));
+function mapsUrl(e) {
+  if (e.lat != null && e.lon != null && e.lat !== 0 && e.lon !== 0) return `https://www.google.com/maps?q=${e.lat},${e.lon}`;
+  const q = [e.city, e.region, e.country].filter(Boolean).join(", ");
+  return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : "";
+}
 
 // ---------- auth ----------
 async function checkAuth() { if ((await api("/api/admin/me")).authed) showDash(); }
@@ -23,7 +30,12 @@ $("loginForm").addEventListener("submit", async (e) => {
   if (r.ok) showDash(); else $("loginErr").style.display = "block";
 });
 $("logoutBtn").addEventListener("click", async () => { await api("/api/admin/logout", { method: "POST" }); location.reload(); });
-function showDash() { $("loginView").classList.add("hidden"); $("dashView").classList.remove("hidden"); loadAll(); }
+function showDash() {
+  $("loginView").classList.add("hidden"); $("dashView").classList.remove("hidden"); loadAll();
+  // Telegram notifications link to /admin#v=<visitorId> — auto-open that profile.
+  const m = location.hash.match(/^#v=(.+)$/);
+  if (m) setTimeout(() => whoSent(decodeURIComponent(m[1])), 250);
+}
 
 // ---------- data ----------
 function loadAll() { loadStats(); loadInbox(); }
@@ -47,14 +59,20 @@ async function loadInbox() {
 function renderMessage(m) {
   const loc = [m.city, m.region, m.country].filter(Boolean).join(", ") || "unknown location";
   const dev = m.device_model || m.device || "device?";
+  const maps = mapsUrl(m);
   const chips = [
-    `📍 ${esc(loc)}`,
+    maps ? { t: `📍 ${esc(loc)}`, href: maps } : `📍 ${esc(loc)}`,
     `📱 ${esc(dev)}`,
     m.os ? `⚙️ ${esc(m.os)} ${esc(m.os_version || "")}` : "",
     m.source ? `🌐 ${esc(m.source)}` : "",
     m.isp ? `📡 ${esc(m.isp)}` : "",
+    looksHosting(m.isp) ? { t: "⚠️ possible VPN/proxy", hot: 1 } : "",
     m.handle ? { t: `@${esc(m.handle)}`, hot: 1 } : "",
-  ].filter(Boolean).map((c) => typeof c === "string" ? `<span class="chip">${c}</span>` : `<span class="chip hot">${c.t}</span>`);
+  ].filter(Boolean).map((c) => {
+    if (typeof c === "string") return `<span class="chip">${c}</span>`;
+    if (c.href) return `<a class="chip" href="${c.href}" target="_blank" rel="noopener">${c.t} ↗</a>`;
+    return `<span class="chip hot">${c.t}</span>`;
+  });
   return `<div class="msg ${m.is_read ? "" : "unread"}">
     <div class="body">${esc(m.body)}</div>
     <div class="meta">${chips.join("")}</div>
@@ -77,17 +95,22 @@ window.whoSent = async function (visitorId) {
   const kv = (ico, k, val) => `<div class="kv"><span class="k"><span class="ico">${ico}</span>${k}</span><span class="v">${esc(val || "—")}</span></div>`;
   const loc = [e.city, e.region, e.country].filter(Boolean).join(", ");
   const coords = e.lat ? `${e.lat},${e.lon}` : "";
+  const eMaps = mapsUrl(e);
   const mapEmbed = coords
     ? `<div class="mapwrap"><iframe loading="lazy" src="https://maps.google.com/maps?q=${coords}&z=11&output=embed"></iframe></div>
-       <div class="locpill">📍 ${esc(loc || "Unknown")}</div>`
+       <div class="locpill">📍 ${esc(loc || "Unknown")} ${eMaps ? `<a href="${eMaps}" target="_blank" rel="noopener" style="color:#ff9db0;font-weight:700;margin-left:6px">Open in Google Maps ↗</a>` : ""}</div>`
     : `<p class="muted">No location captured.</p>`;
+  const hostingWarn = looksHosting(e.isp)
+    ? `<p class="muted" style="color:#ff9db0;margin-top:6px">⚠️ ISP name matches hosting/VPN/proxy patterns — may not be a real residential visitor.</p>` : "";
 
   const model = e.device_model || (e.device === "desktop" ? "Desktop / Laptop" : "Unknown device");
   const modelNote = e.model_source === "viewport" ? " (from screen size)" : "";
 
-  const history = r.events.slice(0, 20).map((x) =>
-    `<div class="kv"><span class="k">${x.type === "view" ? "👀 view" : "💌 message"} · ${ago(x.created_at)}</span>
-     <span class="v">${esc([x.city, x.country].filter(Boolean).join(", ") || "—")} · ${esc(x.source || "")}</span></div>`).join("");
+  const history = r.events.slice(0, 20).map((x) => {
+    const xMaps = mapsUrl(x);
+    return `<div class="kv"><span class="k">${x.type === "view" ? "👀 view" : "💌 message"} · ${ago(x.created_at)}</span>
+     <span class="v">${xMaps ? `<a href="${xMaps}" target="_blank" rel="noopener" style="color:#ff9db0">` : ""}${esc([x.city, x.country].filter(Boolean).join(", ") || "—")}${xMaps ? "</a>" : ""} · ${esc(x.source || "")}</span></div>`;
+  }).join("");
 
   openModal(`
     <div class="modal-head">
@@ -107,6 +130,7 @@ window.whoSent = async function (visitorId) {
 
       <div class="sect-title">📍 Location</div>
       ${mapEmbed}
+      ${hostingWarn}
 
       <div class="sect-title">📱 Device</div>
       <div class="panel">

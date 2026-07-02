@@ -101,6 +101,19 @@ function deviceType(ua) {
   return "desktop";
 }
 
+// Client hints ride in on an untrusted request body — anything from a
+// scanner/bot hitting /api/view or /api/send directly (not through our own
+// JS) can be malformed. Strip stray quotes/whitespace/junk before storing.
+function clean(v, max = 120) {
+  if (typeof v !== "string") return "";
+  let t = v.trim();
+  if (t.length >= 2 && ((t[0] === '"' && t[t.length - 1] === '"') || (t[0] === "'" && t[t.length - 1] === "'"))) {
+    t = t.slice(1, -1).trim();
+  }
+  if (!t || t === '"' || t === "'" || /^(null|undefined|nan)$/i.test(t)) return "";
+  return t.slice(0, max);
+}
+
 async function sha256Hex(str) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -117,11 +130,12 @@ export async function buildFingerprint(request, hints = {}) {
   const os = detectOS(ua);
 
   // Resolve device model: UA high-entropy > Android UA > iPhone-from-viewport.
+  const hintModel = clean(hints.model, 60);
   let device_model = "", model_source = "";
-  if (hints.model) { device_model = hints.model; model_source = "ua"; }
+  if (hintModel) { device_model = hintModel; model_source = "ua"; }
   else if (/Android/i.test(ua)) { device_model = androidModel(ua); model_source = device_model ? "ua" : ""; }
   else if (/iPhone/i.test(ua)) {
-    device_model = iphoneFromViewport(hints.vw, hints.vh, hints.dpr);
+    device_model = iphoneFromViewport(Number(hints.vw) || 0, Number(hints.vh) || 0, Number(hints.dpr) || 0);
     model_source = device_model && device_model !== "iPhone" ? "viewport" : "";
   } else if (/iPad/i.test(ua)) { device_model = "iPad"; }
 
@@ -147,16 +161,16 @@ export async function buildFingerprint(request, hints = {}) {
     model_source,
     source: detectSource(ua),
     is_mobile: /Mobi|Android|iPhone/i.test(ua) ? 1 : 0,
-    lang: (hints.langs || lang).split(",")[0] || "",
+    lang: clean((hints.langs || lang).split(",")[0], 20),
     referer,
-    viewport: hints.vw && hints.vh ? `${hints.vw}x${hints.vh}` : "",
-    screen: hints.screen || "",
-    dpr: hints.dpr ? String(hints.dpr) : "",
-    platform: hints.platform || "",
-    cores: hints.cores || null,
-    mem: hints.mem ? String(hints.mem) : "",
-    touch: hints.touch != null ? Number(hints.touch) : null,
-    color_depth: hints.colorDepth || null,
+    viewport: Number(hints.vw) > 0 && Number(hints.vh) > 0 ? `${Number(hints.vw)}x${Number(hints.vh)}` : "",
+    screen: clean(hints.screen, 30),
+    dpr: Number(hints.dpr) > 0 ? String(Number(hints.dpr)) : "",
+    platform: clean(hints.platform, 60),
+    cores: Number.isFinite(Number(hints.cores)) && Number(hints.cores) > 0 ? Math.round(Number(hints.cores)) : null,
+    mem: Number(hints.mem) > 0 ? String(Number(hints.mem)) : "",
+    touch: Number.isFinite(Number(hints.touch)) ? Math.max(0, Math.round(Number(hints.touch))) : null,
+    color_depth: Number(hints.colorDepth) > 0 ? Math.round(Number(hints.colorDepth)) : null,
   };
 
   // ip+ua fallback identity.
