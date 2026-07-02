@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS links (
   slug        TEXT PRIMARY KEY,
   title       TEXT,
-  prompt      TEXT NOT NULL DEFAULT 'send me a message!',
+  prompt      TEXT NOT NULL DEFAULT 'send me anonymous messages!',
   created_at  INTEGER NOT NULL,
   active      INTEGER NOT NULL DEFAULT 1
 );
@@ -81,4 +81,4 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('skip_bot_messages', '0');
 
 INSERT OR IGNORE INTO links (slug, title, prompt, created_at, active)
-VALUES ('', 'losthusky', 'send me a message!', 0, 1);
+VALUES ('', 'losthusky', 'send me anonymous messages!', 0, 1);

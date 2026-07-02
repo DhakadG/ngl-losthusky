@@ -3,25 +3,26 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#ff2e74" />
+<meta name="theme-color" content="#FF4079" />
+<link rel="icon" type="image/png" href="/favicon.png" />
 <title>losthusky</title>
 <style>
   :root{
-    --pink:#ff2e74; --orange:#ff9a3c;
-    --grad:linear-gradient(105deg,#ff2e74 0%,#ff6a3d 55%,#ff9a3c 100%);
+    --pink:#FF4079; --orange:#FE831B; --fire:#B24701;
+    --grad:linear-gradient(105deg,#FF4079 0%,#FE831B 75%,#FE831B 100%);
     --ink:#12131a; --muted:#7a7f8c;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
   html,body{height:100%}
   body{
     font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
-    background:linear-gradient(160deg,#ff2e74 0%,#ff6a3d 48%,#ffb03a 100%);
+    background:linear-gradient(160deg,#FF4079 0%,#FE831B 62%,#B24701 100%);
     background-attachment:fixed;
   }
   .wrap{width:100%;max-width:440px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;padding:22px 16px 22px}
 
   /* NGL-style card */
-  .card{background:#fff;border-radius:26px;overflow:hidden;box-shadow:0 26px 60px rgba(120,20,60,.32)}
+  .card{background:#fff;border-radius:26px;overflow:hidden;box-shadow:0 26px 60px rgba(120,20,15,.32)}
   .card-head{display:flex;align-items:center;gap:12px;padding:15px 18px}
   .card-head .pfp{width:50px;height:50px;border-radius:50%;overflow:hidden;flex:0 0 auto;background:var(--grad)}
   .card-head .pfp img{width:100%;height:100%;object-fit:cover;display:block}
@@ -29,16 +30,26 @@
   .card-head .ht .h{font-size:15px;font-weight:700;color:#111;line-height:1.2}
   .card-head .ht .p{font-size:18px;font-weight:800;color:#111;line-height:1.28;word-break:break-word}
 
-  .qbox{position:relative;background:linear-gradient(180deg,#ffdbe0 0%,#ffd2c8 100%)}
+  .qbox{
+    position:relative;
+    background-color:rgba(255,255,255,0.4);
+    backdrop-filter:blur(24px);
+    -webkit-backdrop-filter:blur(6px);
+    border-radius:0 0 24px 24px;
+    -webkit-appearance:none;
+  }
   textarea{
     display:block;width:100%;border:none;background:transparent;resize:none;min-height:210px;
-    padding:20px 20px 66px;font-size:22px;font-weight:600;color:#3a2a2e;font-family:inherit;
+    padding:20px 20px 70px;font-size:22px;font-weight:600;color:#3a2a2e;font-family:inherit;
     outline:none;line-height:1.35;
   }
   textarea::placeholder{color:rgba(60,30,40,.42);font-weight:600}
   .dice{
-    position:absolute;bottom:14px;right:14px;width:48px;height:48px;border-radius:50%;
-    background:#fff;color:var(--pink);font-size:22px;border:none;cursor:pointer;
+    position:absolute;bottom:14px;right:14px;width:56px;height:56px;border-radius:50%;
+    background-color:rgba(255,255,255,0.4);
+    backdrop-filter:blur(24px);
+    -webkit-backdrop-filter:blur(6px);
+    color:var(--pink);font-size:26px;border:none;cursor:pointer;
     display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.16);transition:transform .3s;
   }
   .dice:active{transform:rotate(180deg) scale(.88)}
@@ -58,8 +69,8 @@
   .send-btn:active{transform:scale(.98)}
   .send-btn:disabled{opacity:.6}
 
-  .sent-state{background:#fff;border-radius:22px;padding:30px 20px;text-align:center;margin-top:2px;box-shadow:0 20px 50px rgba(120,20,60,.3)}
-  .sent-state .check{width:74px;height:74px;border-radius:50%;background:var(--grad);color:#fff;font-size:38px;display:grid;place-items:center;margin:0 auto 12px;box-shadow:0 10px 24px rgba(255,46,116,.4)}
+  .sent-state{background:#fff;border-radius:22px;padding:30px 20px;text-align:center;margin-top:2px;box-shadow:0 20px 50px rgba(120,20,15,.3)}
+  .sent-state .check{width:74px;height:74px;border-radius:50%;background:var(--grad);color:#fff;font-size:38px;display:grid;place-items:center;margin:0 auto 12px;box-shadow:0 10px 24px rgba(255,64,121,.4)}
   .sent-state p{font-size:20px;font-weight:800;color:var(--ink)}
   .secondary{margin-top:14px;border:2px solid var(--pink);background:#fff;color:var(--pink);border-radius:15px;padding:12px 26px;font-weight:800;cursor:pointer;font-size:15px}
 
@@ -72,11 +83,19 @@
   .spacer{flex:1;min-height:22px}
   .bottom{text-align:center}
   .friends{color:#fff;font-weight:800;font-size:16px;margin-bottom:14px;text-shadow:0 1px 4px rgba(0,0,0,.16)}
-  .getbtn{
-    width:100%;max-width:420px;border:none;border-radius:999px;background:#111;color:#fff;
-    font-size:19px;font-weight:800;padding:19px;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.28);transition:transform .1s;
+
+  .download-link1{
+    display:block;width:100%;max-width:420px;margin:0 auto;box-sizing:border-box;
+    border:none;border-radius:999px;background:#111;color:#fff;text-decoration:none;
+    font-size:19px;font-weight:800;padding:19px;cursor:pointer;text-align:center;
+    box-shadow:0 10px 26px rgba(0,0,0,.28);
   }
-  .getbtn:active{transform:scale(.98)}
+  @keyframes animate-shake{
+    0%,100%{transform:translateY(0) scale(1)}
+    50%{transform:translateY(-4px) scale(1.03)}
+  }
+  .pulse{animation:2s ease-in-out 0s infinite normal none running animate-shake}
+
   .foot-links{margin-top:14px;color:rgba(255,255,255,.85);font-size:12px;font-weight:600}
 
   .admin-dot{position:fixed;bottom:8px;right:10px;color:rgba(255,255,255,.3);text-decoration:none;font-size:16px}
@@ -135,8 +154,8 @@
     <div class="spacer"></div>
 
     <div class="bottom">
-      <div class="friends">👇 <span id="friends">0</span> people have opened this 👇</div>
-      <button type="button" class="getbtn" id="getBtn">Send @losthusky a message ↑</button>
+      <h2 class="friends">👇 <span class="clickCount" id="friends">0</span> friends just tapped the button👇</h2>
+      <a class="download-link1 pulse" href="https://nglshare.sng.link/Dbvhx/8cvmw/yeyc?paffid=losthusky" target="_blank" rel="noopener">Get your own messages!</a>
       <div class="foot-links">losthusky · q&amp;a</div>
     </div>
   </form>

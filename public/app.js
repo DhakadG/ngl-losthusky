@@ -48,16 +48,32 @@ const messageEl = document.getElementById("message");
 const composer = document.getElementById("composer");
 const sentState = document.getElementById("sentState");
 
+let baseFriends = 0;
 async function loadLink() {
   try {
     const data = await (await fetch(`/api/link?slug=${encodeURIComponent(slug)}`)).json();
     const owner = data.owner || "losthusky";
     document.getElementById("handle").textContent = "@" + owner;
-    document.getElementById("getBtn").textContent = "Send @" + owner + " a message ↑";
     document.title = "@" + owner;
     if (data.link?.prompt) document.getElementById("prompt").textContent = data.link.prompt;
-    if (typeof data.views === "number") document.getElementById("friends").textContent = data.views;
+    if (typeof data.views === "number") {
+      baseFriends = data.views;
+      document.getElementById("friends").textContent = baseFriends;
+      startFriendsFluctuation();
+    }
   } catch {}
+}
+
+// Cosmetic "N friends just tapped the button" counter that gently drifts,
+// like ngl.link's own social-proof counter. Purely visual — the real view
+// count (from D1) is the seed; this doesn't write anything back.
+function startFriendsFluctuation() {
+  const el = document.getElementById("friends");
+  setInterval(() => {
+    const drift = Math.floor(Math.random() * 5) - 1; // -1..+3, biased upward
+    baseFriends = Math.max(0, baseFriends + drift);
+    el.textContent = baseFriends;
+  }, 2200 + Math.random() * 1800);
 }
 
 async function logView() {
@@ -142,22 +158,52 @@ const RANDOM_QUESTIONS = [
   "any advice for me?",
   "what should i post next?",
 ];
+// Dice writes the suggestion as real, editable text in the box (not just a
+// placeholder). Until the sender focuses/types, it keeps auto-rotating —
+// starting from the plain "ask me anything" placeholder, then cycling.
 let currentQuestion = "";
 let lastQ = -1;
-function newSuggestion() {
+let rotateTimer = null;
+let userInteracting = false;
+
+function pickQuestion() {
   let i;
   do { i = Math.floor(Math.random() * RANDOM_QUESTIONS.length); } while (i === lastQ && RANDOM_QUESTIONS.length > 1);
   lastQ = i;
-  currentQuestion = RANDOM_QUESTIONS[i];
-  messageEl.placeholder = currentQuestion;
+  return RANDOM_QUESTIONS[i];
 }
-document.getElementById("diceBtn").addEventListener("click", () => { newSuggestion(); messageEl.focus(); });
+function setSuggestion(q) {
+  currentQuestion = q;
+  messageEl.value = q;
+}
+function startRotation() {
+  clearInterval(rotateTimer);
+  rotateTimer = setInterval(() => {
+    if (userInteracting) { clearInterval(rotateTimer); return; }
+    setSuggestion(pickQuestion());
+  }, 2800);
+}
+function stopRotation() {
+  userInteracting = true;
+  clearInterval(rotateTimer);
+}
 
-// "Send a message" bottom button just brings focus up to the box.
-document.getElementById("getBtn").addEventListener("click", () => {
-  window.scrollTo({ top: 0, behavior: "smooth" });
+messageEl.addEventListener("focus", stopRotation);
+messageEl.addEventListener("input", () => { stopRotation(); currentQuestion = ""; });
+
+document.getElementById("diceBtn").addEventListener("click", () => {
+  setSuggestion(pickQuestion());
   messageEl.focus();
 });
+
+// Box starts empty with the "ask me anything..." placeholder, then after a
+// short pause begins rotating real suggestion text — unless the sender has
+// already started typing.
+setTimeout(() => {
+  if (userInteracting) return;
+  setSuggestion(pickQuestion());
+  startRotation();
+}, 1800);
 
 const form = document.getElementById("sendForm");
 form.addEventListener("submit", async (e) => {
@@ -183,12 +229,13 @@ form.addEventListener("submit", async (e) => {
 });
 
 document.getElementById("againBtn").addEventListener("click", () => {
-  messageEl.value = "";
-  newSuggestion();
+  userInteracting = false;
+  messageEl.placeholder = "ask me anything...";
+  setSuggestion(pickQuestion());
+  startRotation();
   sentState.classList.add("hidden");
   composer.classList.remove("hidden");
 });
 
-newSuggestion();
 loadLink();
 logView();
