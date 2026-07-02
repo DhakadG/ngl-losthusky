@@ -69,5 +69,16 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_slug ON messages(slug, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_visitor ON messages(visitor_id);
 
+-- Admin-configurable key/value settings (notification toggles, etc.)
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
+INSERT OR IGNORE INTO settings (key, value) VALUES
+  ('notify_messages', '1'),
+  ('notify_views', '1'),
+  ('skip_bot_views', '1'),
+  ('skip_bot_messages', '0');
+
 INSERT OR IGNORE INTO links (slug, title, prompt, created_at, active)
 VALUES ('', 'losthusky', 'send me a message!', 0, 1);

@@ -80,6 +80,30 @@ async function visitorCounts(env, visitorId) {
   return { msgs: row?.msgs || 0, views: row?.views || 0 };
 }
 
+// Admin-configurable notification settings (persisted in D1).
+const SETTING_DEFAULTS = {
+  notify_messages: "1", // notify on new messages
+  notify_views: "1",    // notify on link views
+  skip_bot_views: "1",  // suppress view notifs from hosting/VPN/proxy networks
+  skip_bot_messages: "0", // suppress message notifs from hosting/VPN/proxy networks
+};
+async function getSettings(env) {
+  const s = { ...SETTING_DEFAULTS };
+  try {
+    const rows = await env.DB.prepare("SELECT key, value FROM settings").all();
+    for (const r of rows.results) if (r.key in s) s[r.key] = String(r.value);
+  } catch {}
+  return s;
+}
+// Decide whether to send a notification for this event given settings + bot-ness.
+function shouldNotify(kind, fp, settings) {
+  if (kind === "view" && settings.notify_views !== "1") return false;
+  if (kind === "message" && settings.notify_messages !== "1") return false;
+  if (kind === "view" && settings.skip_bot_views === "1" && fp.is_hosting) return false;
+  if (kind === "message" && settings.skip_bot_messages === "1" && fp.is_hosting) return false;
+  return true;
+}
+
 // ---------- public API ----------
 
 async function handleView(request, env, ctx) {
@@ -89,7 +113,8 @@ async function handleView(request, env, ctx) {
   const { id: visitorId } = await resolveVisitor(env, request, fp, hints);
   await insertEvent(env, "view", slug, visitorId, fp);
 
-  if (env.NOTIFY_ON_VIEW === "true") {
+  const settings = await getSettings(env);
+  if (shouldNotify("view", fp, settings)) {
     ctx.waitUntil(
       (async () => {
         const counts = await visitorCounts(env, visitorId);
@@ -131,18 +156,21 @@ async function handleSend(request, env, ctx) {
     "INSERT INTO messages (slug, visitor_id, body, event_id, created_at) VALUES (?,?,?,?,?)"
   ).bind(slug, visitorId, message, eventId, Date.now()).run();
 
-  ctx.waitUntil(
-    (async () => {
-      const counts = await visitorCounts(env, visitorId);
-      const report = buildReport("message", fp, {
-        slug, handle, message,
-        senderMessages: counts.msgs,
-        senderViews: counts.views,
-        dashboardUrl: `${new URL(request.url).origin}/admin#v=${encodeURIComponent(visitorId)}`,
-      });
-      await notify(env, report);
-    })()
-  );
+  const settings = await getSettings(env);
+  if (shouldNotify("message", fp, settings)) {
+    ctx.waitUntil(
+      (async () => {
+        const counts = await visitorCounts(env, visitorId);
+        const report = buildReport("message", fp, {
+          slug, handle, message,
+          senderMessages: counts.msgs,
+          senderViews: counts.views,
+          dashboardUrl: `${new URL(request.url).origin}/admin#v=${encodeURIComponent(visitorId)}`,
+        });
+        await notify(env, report);
+      })()
+    );
+  }
 
   return json({ ok: true }, 200, { "Set-Cookie": visitorCookie(visitorId) });
 }
@@ -230,6 +258,20 @@ async function adminLinks(request, env) {
   return json({ ok: true, links: rows.results });
 }
 
+async function adminSettings(request, env) {
+  if (request.method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    for (const k of Object.keys(SETTING_DEFAULTS)) {
+      if (k in body) {
+        await env.DB.prepare(
+          "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2"
+        ).bind(k, body[k] ? "1" : "0").run();
+      }
+    }
+  }
+  return json({ ok: true, settings: await getSettings(env) });
+}
+
 async function adminVisitors(env) {
   const rows = await env.DB.prepare(
     `SELECT v.id, v.handle, v.label, v.first_seen, v.last_seen,
@@ -257,7 +299,10 @@ export default {
       if (path === "/api/link" && request.method === "GET") {
         const slug = url.searchParams.get("slug") || "";
         const link = await env.DB.prepare("SELECT slug, title, prompt, active FROM links WHERE slug = ?").bind(slug).first();
-        return json({ ok: true, owner: env.OWNER_HANDLE || "", link: link || null });
+        const c = await env.DB.prepare(
+          "SELECT (SELECT COUNT(*) FROM events WHERE slug=?1 AND type='view') AS views, (SELECT COUNT(*) FROM messages WHERE slug=?1) AS messages"
+        ).bind(slug).first();
+        return json({ ok: true, owner: env.OWNER_HANDLE || "", link: link || null, views: c?.views || 0, messages: c?.messages || 0 });
       }
 
       if (path === "/api/admin/login" && request.method === "POST") return adminLogin(request, env);
@@ -271,6 +316,7 @@ export default {
         if (path === "/api/admin/stats") return adminStats(env);
         if (path === "/api/admin/links") return adminLinks(request, env);
         if (path === "/api/admin/visitors") return adminVisitors(env);
+        if (path === "/api/admin/settings") return adminSettings(request, env);
         let m;
         if ((m = path.match(/^\/api\/admin\/visitor\/(.+)$/))) return adminVisitor(env, decodeURIComponent(m[1]));
         if ((m = path.match(/^\/api\/admin\/message\/(\d+)\/read$/)) && request.method === "POST") {

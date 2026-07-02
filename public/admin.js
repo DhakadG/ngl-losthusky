@@ -267,9 +267,43 @@ document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () 
   $("inboxTab").classList.toggle("hidden", tab !== "inbox");
   $("sendersTab").classList.toggle("hidden", tab !== "senders");
   $("linksTab").classList.toggle("hidden", tab !== "links");
+  $("settingsTab").classList.toggle("hidden", tab !== "settings");
   if (tab === "senders") loadSenders();
   if (tab === "links") loadLinks();
+  if (tab === "settings") loadSettings();
 }));
+
+const SETTING_META = [
+  ["notify_messages", "Notify on new messages", "Telegram ping whenever someone sends you a message."],
+  ["notify_views", "Notify on link views", "Telegram ping whenever someone opens your link."],
+  ["skip_bot_views", "Hide bot / crawler views", "Skip view notifications from hosting / VPN / proxy networks (Amazon, Cloudflare, datacenters). These are almost always link-preview crawlers, not real people."],
+  ["skip_bot_messages", "Hide bot / crawler messages", "Skip message notifications from hosting / VPN / proxy networks. Off by default — real messages are rare and worth seeing even from odd networks."],
+];
+async function loadSettings() {
+  const r = await api("/api/admin/settings");
+  const el = $("settingsTab");
+  if (!r.ok) { el.innerHTML = `<p class="muted">Couldn't load settings.</p>`; return; }
+  const s = r.settings;
+  el.innerHTML =
+    `<p class="set-note">Choose which notifications reach your Telegram. Bot filtering uses the sender's network — hosting/datacenter/VPN ASNs are treated as likely crawlers. Events are still recorded in the dashboard; only the Telegram ping is suppressed.</p>` +
+    SETTING_META.map(([key, title, desc]) => `
+      <div class="setrow">
+        <div class="txt"><b>${title}</b><span>${desc}</span></div>
+        <label class="switch">
+          <input type="checkbox" data-key="${key}" ${s[key] === "1" ? "checked" : ""} />
+          <span class="slider"></span>
+        </label>
+      </div>`).join("");
+  el.querySelectorAll('input[data-key]').forEach((inp) =>
+    inp.addEventListener("change", async () => {
+      inp.disabled = true;
+      await api("/api/admin/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [inp.dataset.key]: inp.checked ? 1 : 0 }),
+      });
+      inp.disabled = false;
+    }));
+}
 
 async function loadSenders() {
   const r = await api("/api/admin/visitors"); const el = $("sendersTab");

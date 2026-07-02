@@ -6,12 +6,6 @@ function escHtml(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Networks that are commonly hosting/VPN/proxy providers rather than a
-// residential ISP. Not definitive — just a heads-up so a recurring hit from
-// the same datacenter isn't mistaken for a real repeat visitor.
-const HOSTING_RE = /\b(host(?:ing)?|vpn|proxy|datacenter|data ?center|colo(?:cation)?|cloud|digitalocean|amazon|aws|google ?cloud|microsoft ?azure|\bovh\b|linode|vultr|contabo|leaseweb|hetzner|choopa|m247|psychz|server(?:s)?\b)/i;
-const looksLikeHostingOrProxy = (fp) => !!(fp.isp && HOSTING_RE.test(fp.isp));
-
 export function mapsUrl(fp) {
   if (fp.lat != null && fp.lon != null && fp.lat !== 0 && fp.lon !== 0) {
     return `https://www.google.com/maps?q=${fp.lat},${fp.lon}`;
@@ -24,7 +18,7 @@ export function buildReport(kind, fp, extra = {}) {
   const maps = mapsUrl(fp);
   const loc = [fp.city, fp.region, fp.country].filter(Boolean).join(", ") || "Unknown";
   const dev = [fp.device_model, fp.os, fp.os_version].filter(Boolean).join(" ") || fp.device || "Unknown device";
-  const suspicious = looksLikeHostingOrProxy(fp);
+  const suspicious = !!fp.is_hosting;
   const when = new Date();
 
   const titleHtml = kind === "message"

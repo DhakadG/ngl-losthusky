@@ -99,6 +99,18 @@
   .locpill{display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600}
   .hist{font-size:12.5px}
   .hist .kv{padding:8px 0}
+  /* settings toggles */
+  .setrow{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:15px 16px;margin-bottom:11px}
+  .setrow .txt{flex:1}
+  .setrow .txt b{display:block;font-size:14px;margin-bottom:3px}
+  .setrow .txt span{font-size:12px;color:var(--muted);line-height:1.45}
+  .switch{position:relative;flex:0 0 auto;width:50px;height:28px}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:#2b3048;border-radius:999px;cursor:pointer;transition:background .2s}
+  .slider::before{content:"";position:absolute;height:22px;width:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s}
+  .switch input:checked + .slider{background:linear-gradient(105deg,#ff2e74,#ff9a3c)}
+  .switch input:checked + .slider::before{transform:translateX(22px)}
+  .set-note{font-size:12px;color:var(--muted);margin:6px 2px 16px;line-height:1.5}
   @media(max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
@@ -135,10 +147,12 @@
       <div class="tab active" data-tab="inbox">Inbox</div>
       <div class="tab" data-tab="senders">Senders</div>
       <div class="tab" data-tab="links">Links</div>
+      <div class="tab" data-tab="settings">Settings</div>
     </div>
     <div id="inboxTab"></div>
     <div id="sendersTab" class="hidden"></div>
     <div id="linksTab" class="hidden"></div>
+    <div id="settingsTab" class="hidden"></div>
   </div>
 
   <div id="modalRoot"></div>

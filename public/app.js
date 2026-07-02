@@ -44,13 +44,19 @@ function toast(text) {
   setTimeout(() => t.remove(), 2600);
 }
 
+const messageEl = document.getElementById("message");
+const composer = document.getElementById("composer");
+const sentState = document.getElementById("sentState");
+
 async function loadLink() {
   try {
     const data = await (await fetch(`/api/link?slug=${encodeURIComponent(slug)}`)).json();
     const owner = data.owner || "losthusky";
     document.getElementById("handle").textContent = "@" + owner;
+    document.getElementById("getBtn").textContent = "Send @" + owner + " a message ↑";
     document.title = "@" + owner;
     if (data.link?.prompt) document.getElementById("prompt").textContent = data.link.prompt;
+    if (typeof data.views === "number") document.getElementById("friends").textContent = data.views;
   } catch {}
 }
 
@@ -63,13 +69,104 @@ async function logView() {
   } catch {}
 }
 
+// ---- random question generator (ngl.link style) ----
+const RANDOM_QUESTIONS = [
+  "are u single?",
+  "are u talking to anyone rn??",
+  "who's your crush? 👀",
+  "what do u really think of me?",
+  "rate me 1-10, be honest",
+  "what's my best feature?",
+  "biggest ick?",
+  "what's your red flag?",
+  "what's your green flag?",
+  "hot take?",
+  "spill the tea ☕",
+  "what's a secret you've never told anyone?",
+  "who was your first kiss?",
+  "do you have a crush on me? 👀",
+  "if we dated where would you take me?",
+  "what's the most embarrassing thing you've done?",
+  "what would you change about me?",
+  "am i cute or hot? pick one",
+  "what's your toxic trait?",
+  "describe me in 3 words",
+  "what's the last lie you told?",
+  "would you date me? no cap",
+  "what's your love language?",
+  "biggest turn off?",
+  "what's your guilty pleasure song?",
+  "who's your celebrity crush?",
+  "what's the wildest thing you've done?",
+  "have you ever lied to me?",
+  "what's a rumor you've heard about me?",
+  "what's your favorite thing about me?",
+  "what's your biggest fear?",
+  "send me a confession 👀",
+  "what's your worst habit?",
+  "would you kiss me?",
+  "what's your unpopular opinion?",
+  "what's your dream date?",
+  "who's your best friend and why?",
+  "what's your comfort show?",
+  "what's your biggest regret?",
+  "am i your type? 😏",
+  "what's the first thing you noticed about me?",
+  "who's the last person you texted?",
+  "what's your zodiac sign?",
+  "do you believe in love at first sight?",
+  "what's the nicest thing anyone's done for you?",
+  "what's your biggest flex?",
+  "what's your biggest insecurity?",
+  "if you could date anyone here, who?",
+  "what's your dream job?",
+  "coffee or tea?",
+  "what's your dream car?",
+  "what's your morning routine?",
+  "who do you miss rn?",
+  "what's a hill you'll die on?",
+  "would you rather text or call?",
+  "what's your go-to karaoke song?",
+  "what's something you find attractive?",
+  "have you ever had a crush on me?",
+  "what's your worst date story?",
+  "what's your favorite memory with me?",
+  "what's the tea on your ex?",
+  "who's the funniest person you know?",
+  "drop a compliment 💗",
+  "what's your dream vacation?",
+  "single or taken?",
+  "what song reminds you of me?",
+  "what's the last thing that made you cry?",
+  "what's your opinion on me, no filter",
+  "any advice for me?",
+  "what should i post next?",
+];
+let currentQuestion = "";
+let lastQ = -1;
+function newSuggestion() {
+  let i;
+  do { i = Math.floor(Math.random() * RANDOM_QUESTIONS.length); } while (i === lastQ && RANDOM_QUESTIONS.length > 1);
+  lastQ = i;
+  currentQuestion = RANDOM_QUESTIONS[i];
+  messageEl.placeholder = currentQuestion;
+}
+document.getElementById("diceBtn").addEventListener("click", () => { newSuggestion(); messageEl.focus(); });
+
+// "Send a message" bottom button just brings focus up to the box.
+document.getElementById("getBtn").addEventListener("click", () => {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  messageEl.focus();
+});
+
 const form = document.getElementById("sendForm");
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("sendBtn");
-  const message = document.getElementById("message").value.trim();
+  // empty box → send the currently suggested question (ngl behaviour)
+  const message = (messageEl.value.trim() || currentQuestion || "").trim();
   const handle = document.getElementById("handleField").value.trim();
-  if (!message) return;
+  if (!message) { messageEl.focus(); return; }
   btn.disabled = true; btn.textContent = "Sending...";
   try {
     const res = await fetch("/api/send", {
@@ -79,50 +176,19 @@ form.addEventListener("submit", async (e) => {
     if (res.status === 429) { toast("Slow down a sec 🙏"); return; }
     const data = await res.json();
     if (!data.ok) { toast("Something went wrong"); return; }
-    form.classList.add("hidden");
-    document.getElementById("sentState").classList.remove("hidden");
+    composer.classList.add("hidden");
+    sentState.classList.remove("hidden");
   } catch { toast("Network error"); }
   finally { btn.disabled = false; btn.textContent = "Send!"; }
 });
 
 document.getElementById("againBtn").addEventListener("click", () => {
-  document.getElementById("message").value = "";
-  document.getElementById("sentState").classList.add("hidden");
-  form.classList.remove("hidden");
+  messageEl.value = "";
+  newSuggestion();
+  sentState.classList.add("hidden");
+  composer.classList.remove("hidden");
 });
 
-// Random question generator (dice) — ngl.link style.
-const RANDOM_QUESTIONS = [
-  "What's your honest first impression of me?",
-  "Send me a confession 👀",
-  "What's something you've always wanted to tell me?",
-  "Rate my vibe from 1-10 😌",
-  "Who do you think I have a crush on?",
-  "What song reminds you of me?",
-  "Drop a compliment anonymously 💗",
-  "What's the most attractive thing about me?",
-  "Truth: do you miss me?",
-  "Any advice for me?",
-  "What should I post next?",
-  "What's your favorite memory of us?",
-  "If you could change one thing about me, what would it be?",
-  "Ask me anything 👀",
-  "What's a secret you've never told anyone?",
-  "Am I your type? be honest 😏",
-  "What's the first thing you noticed about me?",
-  "Spill some tea ☕",
-];
-let lastQ = -1;
-const diceBtn = document.getElementById("diceBtn");
-const messageEl = document.getElementById("message");
-diceBtn.addEventListener("click", () => {
-  let i;
-  do { i = Math.floor(Math.random() * RANDOM_QUESTIONS.length); } while (i === lastQ && RANDOM_QUESTIONS.length > 1);
-  lastQ = i;
-  messageEl.value = RANDOM_QUESTIONS[i];
-  messageEl.focus();
-  messageEl.setSelectionRange(messageEl.value.length, messageEl.value.length);
-});
-
+newSuggestion();
 loadLink();
 logView();

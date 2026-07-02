@@ -114,6 +114,14 @@ function clean(v, max = 120) {
   return t.slice(0, max);
 }
 
+// Networks that are hosting/datacenter/VPN/proxy providers rather than a
+// residential ISP. Real senders come from consumer ISPs / mobile carriers;
+// link-preview crawlers and scanners come from these networks.
+export const HOSTING_RE = /(host(?:ing|royale)?|\bvpn\b|proxy|datacenter|data ?center|colo(?:cation)?|\bcloud\b|digitalocean|amazon|\baws\b|google|microsoft|azure|\bovh\b|linode|akamai|fastly|\bgcore\b|oracle|alibaba|tencent|vultr|contabo|leaseweb|hetzner|choopa|constant company|\bm247\b|psychz|scaleway|namecheap|hostinger|godaddy|quadranet|zenlayer|cogent|\bservers?\b)/i;
+export function isHostingIsp(isp) {
+  return !!(isp && HOSTING_RE.test(isp));
+}
+
 async function sha256Hex(str) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -150,6 +158,7 @@ export async function buildFingerprint(request, hints = {}) {
     postal: cf.postalCode || "",
     asn: cf.asn || null,
     isp: cf.asOrganization || "",
+    is_hosting: isHostingIsp(cf.asOrganization || ""),
     colo: cf.colo || "",
     ua,
     browser,
