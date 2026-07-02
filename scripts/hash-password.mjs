@@ -8,7 +8,9 @@ if (!password) {
   process.exit(1);
 }
 
-const ITER = 210000;
+// Cloudflare Workers caps WebCrypto PBKDF2 at 100,000 iterations — going
+// higher makes verifyPassword throw at runtime (HTTP 500). Keep it at 100k.
+const ITER = 100000;
 const salt = randomBytes(16);
 const hash = pbkdf2Sync(password, salt, ITER, 32, "sha256");
 const b64url = (b) => b.toString("base64url");

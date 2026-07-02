@@ -91,5 +91,38 @@ document.getElementById("againBtn").addEventListener("click", () => {
   form.classList.remove("hidden");
 });
 
+// Random question generator (dice) — ngl.link style.
+const RANDOM_QUESTIONS = [
+  "What's your honest first impression of me?",
+  "Send me a confession 👀",
+  "What's something you've always wanted to tell me?",
+  "Rate my vibe from 1-10 😌",
+  "Who do you think I have a crush on?",
+  "What song reminds you of me?",
+  "Drop a compliment anonymously 💗",
+  "What's the most attractive thing about me?",
+  "Truth: do you miss me?",
+  "Any advice for me?",
+  "What should I post next?",
+  "What's your favorite memory of us?",
+  "If you could change one thing about me, what would it be?",
+  "Ask me anything 👀",
+  "What's a secret you've never told anyone?",
+  "Am I your type? be honest 😏",
+  "What's the first thing you noticed about me?",
+  "Spill some tea ☕",
+];
+let lastQ = -1;
+const diceBtn = document.getElementById("diceBtn");
+const messageEl = document.getElementById("message");
+diceBtn.addEventListener("click", () => {
+  let i;
+  do { i = Math.floor(Math.random() * RANDOM_QUESTIONS.length); } while (i === lastQ && RANDOM_QUESTIONS.length > 1);
+  lastQ = i;
+  messageEl.value = RANDOM_QUESTIONS[i];
+  messageEl.focus();
+  messageEl.setSelectionRange(messageEl.value.length, messageEl.value.length);
+});
+
 loadLink();
 logView();

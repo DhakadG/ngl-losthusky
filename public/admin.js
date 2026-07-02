@@ -24,10 +24,43 @@ function mapsUrl(e) {
 
 // ---------- auth ----------
 async function checkAuth() { if ((await api("/api/admin/me")).authed) showDash(); }
+// password show/hide
+$("eyeBtn").addEventListener("click", () => {
+  const inp = $("password");
+  const show = inp.type === "password";
+  inp.type = show ? "text" : "password";
+  $("eyeBtn").setAttribute("aria-label", show ? "Hide password" : "Show password");
+  $("eyeIcon").innerHTML = show
+    ? '<path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.67 2.68M6.6 6.6A13.3 13.3 0 0 0 2 11s3.5 7 10 7a9.1 9.1 0 0 0 5.4-1.6M1 1l22 22"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
+    : '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>';
+});
+
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const r = await api("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: $("password").value }) });
-  if (r.ok) showDash(); else $("loginErr").style.display = "block";
+  const btn = $("unlockBtn"), label = $("unlockLabel"), field = $("pwField"), err = $("loginErr");
+  err.textContent = ""; field.classList.remove("err");
+  btn.disabled = true; btn.classList.remove("ok");
+  label.innerHTML = '<span class="spinner"></span> Unlocking...';
+  try {
+    const r = await api("/api/admin/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: $("password").value }),
+    });
+    if (r.ok) {
+      field.classList.add("ok"); btn.classList.add("ok"); label.textContent = "✓ Unlocked";
+      setTimeout(showDash, 450);
+    } else if (r.status === 429) {
+      throw new Error("Too many attempts — wait a moment.");
+    } else {
+      throw new Error("Wrong password.");
+    }
+  } catch (ex) {
+    field.classList.add("err", "shake");
+    err.textContent = ex.message || "Something went wrong.";
+    setTimeout(() => field.classList.remove("shake"), 500);
+    btn.disabled = false; label.textContent = "Unlock";
+    $("password").focus(); $("password").select();
+  }
 });
 $("logoutBtn").addEventListener("click", async () => { await api("/api/admin/logout", { method: "POST" }); location.reload(); });
 function showDash() {

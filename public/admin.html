@@ -18,10 +18,27 @@
 
   /* login */
   .login-wrap{min-height:100dvh;display:grid;place-items:center;padding:20px}
-  .login-card{background:var(--panel);border:1px solid var(--border);border-radius:22px;padding:30px;width:100%;max-width:340px;text-align:center}
-  .login-card h1{font-size:20px;margin-bottom:18px}
-  .login-card input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:#fff;font-size:15px;margin-bottom:12px}
-  .login-card button{width:100%;padding:14px;border:none;border-radius:12px;background:var(--grad);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .login-card{background:var(--panel);border:1px solid var(--border);border-radius:24px;padding:32px 28px;width:100%;max-width:360px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .login-pfp{width:76px;height:76px;border-radius:50%;overflow:hidden;margin:0 auto 14px;background:var(--grad);box-shadow:0 8px 20px rgba(255,46,116,.4)}
+  .login-pfp img{width:100%;height:100%;object-fit:cover;display:block}
+  .login-card h1{font-size:20px;margin-bottom:4px}
+  .login-card .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+  .pw-field{position:relative;margin-bottom:14px}
+  .pw-field input{width:100%;padding:15px 46px 15px 15px;border-radius:13px;border:1px solid var(--border);background:var(--bg);color:#fff;font-size:15px;transition:border-color .15s,box-shadow .15s}
+  .pw-field input:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,46,116,.18)}
+  .pw-field.err input{border-color:#ff5470;box-shadow:0 0 0 3px rgba(255,84,112,.18)}
+  .pw-field.ok input{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.2)}
+  .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:none;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;border-radius:9px}
+  .eye:hover{color:#fff;background:rgba(255,255,255,.06)}
+  .login-card button.unlock{width:100%;padding:15px;border:none;border-radius:13px;background:var(--grad);color:#fff;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s,transform .1s}
+  .login-card button.unlock:active{transform:scale(.98)}
+  .login-card button.unlock:disabled{opacity:.7;cursor:default}
+  .login-card button.unlock.ok{background:linear-gradient(105deg,#16a34a,#22c55e)}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .login-err{color:#ff8095;font-size:13px;margin-top:13px;min-height:16px}
+  @keyframes shake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+  .shake{animation:shake .5s}
 
   /* dash */
   .dash{max-width:940px;margin:0 auto;padding:18px 14px 70px}
@@ -88,10 +105,19 @@
 <body>
   <div id="loginView" class="login-wrap">
     <form id="loginForm" class="login-card">
-      <h1>🔒 Dashboard</h1>
-      <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
-      <button type="submit">Unlock</button>
-      <p id="loginErr" class="muted" style="color:#ff8095;margin-top:12px;display:none">Wrong password</p>
+      <div class="login-pfp"><img src="/pfp.jpg" alt="losthusky" /></div>
+      <h1>Dashboard</h1>
+      <div class="sub">🔒 @losthusky · admin only</div>
+      <div class="pw-field" id="pwField">
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
+        <button type="button" class="eye" id="eyeBtn" aria-label="Show password">
+          <svg id="eyeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <button type="submit" class="unlock" id="unlockBtn"><span id="unlockLabel">Unlock</span></button>
+      <p id="loginErr" class="login-err"></p>
     </form>
   </div>
 
