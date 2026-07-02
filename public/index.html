@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#8b5cf6" />
+  <title>losthusky</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="send-page">
+  <main class="card" id="card">
+    <div class="avatar" id="avatar">🐺</div>
+    <h1 class="handle" id="handle">@losthusky</h1>
+
+    <form id="sendForm" class="msg-box">
+      <p class="prompt" id="prompt">send me a message!</p>
+      <textarea id="message" maxlength="1000" rows="3"
+        placeholder="send me a message... 👀" required></textarea>
+      <input id="handleField" class="handle-field" type="text" maxlength="60"
+        placeholder="add your @ (optional)" autocomplete="off" />
+      <button type="submit" id="sendBtn" class="send-btn">Send!</button>
+    </form>
+
+    <div id="sentState" class="sent-state hidden">
+      <div class="check">✓</div>
+      <p>Sent! 🎉</p>
+      <button class="secondary" id="againBtn">Send another</button>
+    </div>
+
+    <p class="disclosure">
+      ⚠️ Heads up — this is <b>not anonymous</b>. The recipient can see your
+      approximate location, device, and network for each message you send.
+    </p>
+  </main>
+
+  <footer class="foot">
+    <a href="/admin" class="ghost-link">·</a>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

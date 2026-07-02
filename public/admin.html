@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="admin-body">
+  <!-- Login -->
+  <div id="loginView" class="login-wrap">
+    <form id="loginForm" class="login-card">
+      <h1>🔒 Dashboard</h1>
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
+      <button type="submit">Unlock</button>
+      <p id="loginErr" class="muted2" style="color:#f87171;margin:12px 0 0;display:none">Wrong password</p>
+    </form>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashView" class="dash hidden">
+    <div class="topbar">
+      <h1>💌 Inbox</h1>
+      <div class="actions">
+        <button class="btn primary" id="newLinkBtn">+ New link</button>
+        <button class="btn" id="refreshBtn">↻</button>
+        <button class="btn" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="inbox">Inbox</div>
+      <div class="tab" data-tab="senders">Senders</div>
+      <div class="tab" data-tab="links">Links</div>
+    </div>
+
+    <div id="inboxTab"></div>
+    <div id="sendersTab" class="hidden"></div>
+    <div id="linksTab" class="hidden"></div>
+  </div>
+
+  <div id="modalRoot"></div>
+  <canvas id="storyCanvas" width="1080" height="1920" style="display:none"></canvas>
+  <script src="/admin.js"></script>
+</body>
+</html>

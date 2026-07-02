@@ -1,0 +1,19 @@
+# Copy to `.dev.vars` for local dev. In production set these with:
+#   wrangler secret put ADMIN_PASSWORD_HASH
+#   wrangler secret put SESSION_SECRET
+#   wrangler secret put TELEGRAM_BOT_TOKEN   (optional)
+#   wrangler secret put TELEGRAM_CHAT_ID     (optional)
+#   wrangler secret put NOTIFY_WEBHOOK_URL   (optional, Discord/Slack/etc)
+#
+# .dev.vars is gitignored. NEVER commit real values.
+
+# Generate with: npm run hash-password -- "your-strong-password"
+ADMIN_PASSWORD_HASH="pbkdf2$210000$REPLACE$REPLACE"
+
+# Generate with: npm run gen-secret
+SESSION_SECRET="REPLACE_WITH_32_BYTE_RANDOM"
+
+# --- Optional push notifications ---
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_CHAT_ID=""
+NOTIFY_WEBHOOK_URL=""

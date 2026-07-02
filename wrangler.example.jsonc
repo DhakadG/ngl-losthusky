@@ -1,0 +1,34 @@
+{
+  // Copy this file to `wrangler.jsonc` and fill in the real IDs.
+  // `wrangler.jsonc` is gitignored so your resource IDs never hit GitHub.
+  "name": "losthusky-inbox",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    // Worker handles these first; everything else is served from public/.
+    "run_worker_first": ["/api/*", "/admin", "/admin/*"],
+    // Unknown paths (e.g. /my-slug) fall back to the send page.
+    "not_found_handling": "single-page-application"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "losthusky_inbox",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+    }
+  ],
+
+  "vars": {
+    // Public, non-secret config only. Secrets go in .dev.vars / `wrangler secret`.
+    "OWNER_HANDLE": "losthusky",
+    // Notify me on views too (noisy). Set "false" to only notify on messages.
+    "NOTIFY_ON_VIEW": "false"
+  },
+
+  "routes": [{ "pattern": "ngl.losthusky.qzz.io", "custom_domain": true }]
+}
